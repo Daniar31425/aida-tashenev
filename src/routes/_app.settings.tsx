@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Check, Moon, Sun } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, Check, Moon, Sun, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { useRole } from "@/lib/useRole";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Настройки — AIDA" }] }),
@@ -22,6 +24,7 @@ function useLS(key: string, initial = "") {
 }
 
 function SettingsPage() {
+  const { role, setRole, roleLabel, allRoles } = useRole();
   const [groq, setGroq] = useLS("groq_api_key");
   const [uni, setUni] = useLS("aida_university", "Университет");
   const [tg, setTg] = useLS("aida_telegram_token");
@@ -70,6 +73,28 @@ function SettingsPage() {
         <Field label="Название университета">
           <Input value={uni} onChange={(e) => setUni(e.target.value)} placeholder="Например: КазНУ им. аль-Фараби" />
         </Field>
+        <Field label="Роль пользователя" hint="Определяет доступ к функциям системы">
+          <Select value={role} onValueChange={(value: any) => setRole(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {allRoles.map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    {label}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            Текущая роль: {roleLabel}
+          </Badge>
+        </div>
       </Card>
 
       <Card className="p-5 shadow-sm bg-card space-y-4">

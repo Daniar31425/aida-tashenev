@@ -15,6 +15,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppOrchestratorRouteImport } from './routes/_app.orchestrator'
 import { Route as AppHrRouteImport } from './routes/_app.hr'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppAhoRouteImport } from './routes/_app.aho'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -45,9 +46,15 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAhoRoute = AppAhoRouteImport.update({
+  id: '/aho',
+  path: '/aho',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/aho': typeof AppAhoRoute
   '/dashboard': typeof AppDashboardRoute
   '/hr': typeof AppHrRoute
   '/orchestrator': typeof AppOrchestratorRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/aho': typeof AppAhoRoute
   '/dashboard': typeof AppDashboardRoute
   '/hr': typeof AppHrRoute
   '/orchestrator': typeof AppOrchestratorRoute
@@ -64,6 +72,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/_app/aho': typeof AppAhoRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/hr': typeof AppHrRoute
   '/_app/orchestrator': typeof AppOrchestratorRoute
@@ -71,13 +80,14 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
+  fullPaths: '/' | '/aho' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
+  to: '/' | '/aho' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
   id:
     | '__root__'
     | '/'
     | '/_app'
+    | '/_app/aho'
     | '/_app/dashboard'
     | '/_app/hr'
     | '/_app/orchestrator'
@@ -133,10 +143,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/aho': {
+      id: '/_app/aho'
+      path: '/aho'
+      fullPath: '/aho'
+      preLoaderRoute: typeof AppAhoRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppAhoRoute: typeof AppAhoRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppHrRoute: typeof AppHrRoute
   AppOrchestratorRoute: typeof AppOrchestratorRoute
@@ -144,6 +162,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAhoRoute: AppAhoRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppHrRoute: AppHrRoute,
   AppOrchestratorRoute: AppOrchestratorRoute,

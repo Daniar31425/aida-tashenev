@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Workflow, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { LayoutDashboard, Users, Workflow, Settings as SettingsIcon, Sparkles, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const nav = [
   { to: "/dashboard", label: "Панель управления", icon: LayoutDashboard },
   { to: "/hr", label: "HR Агент", icon: Users },
+  { to: "/aho", label: "Агент АХО", icon: Package },
   { to: "/orchestrator", label: "Оркестратор", icon: Workflow },
   { to: "/settings", label: "Настройки", icon: SettingsIcon },
 ] as const;

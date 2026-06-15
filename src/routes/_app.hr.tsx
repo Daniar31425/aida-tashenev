@@ -1,18 +1,22 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText, Globe2, Users, Clock, Edit3 } from "lucide-react";
 import { useGroq } from "@/lib/useGroq";
 import { useActivity } from "@/lib/activity-log";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 
 export const Route = createFileRoute("/_app/hr")({
   head: () => ({ meta: [{ title: "HR Агент — AIDA" }] }),
@@ -43,149 +47,337 @@ function VacancyBuilder() {
   const { complete } = useGroq();
   const { log } = useActivity();
   const [title, setTitle] = useState("");
-  const [reqs, setReqs] = useState("");
+  const [requiresPhD, setRequiresPhD] = useState(false);
   const [exp, setExp] = useState("Без опыта");
-  const [salFrom, setSalFrom] = useState("");
-  const [salTo, setSalTo] = useState("");
+  const [reqs, setReqs] = useState("");
   const [desc, setDesc] = useState("");
-  const [aiComment, setAiComment] = useState("");
+  const [isEditable, setIsEditable] = useState(false);
 
-  const [gen, setGen] = useState<string | null>(null);
-  const [pub, setPub] = useState<{ open: boolean; platform: string; step: number; url?: string }>({ open: false, platform: "", step: 0 });
+  const [genReqs, setGenReqs] = useState(false);
+  const [genDesc, setGenDesc] = useState(false);
 
-  async function genRequirements() {
-    if (!title.trim()) return toast.error("Сначала укажите должность");
-    setGen("req");
+  const [processing, setProcessing] = useState(false);
+  const [pubStep, setPubStep] = useState(0);
+  const [searchStep, setSearchStep] = useState(0);
+  const [result, setResult] = useState<{
+    url: string;
+    publishedAt: string;
+    candidates: Array<{ name: string; experience: string; match: number }>;
+    fullText: string;
+    timeline: Array<{ step: string; time: string }>;
+  } | null>(null);
+
+  const [accordionOpen, setAccordionOpen] = useState(false);
+
+  async function handleTitleBlur() {
+    if (!title.trim()) return;
+    setGenReqs(true);
     try {
+      const phdReq = requiresPhD ? "Обязательное требование: наличие учёной степени (PhD или кандидат наук)." : "";
       const out = await complete(
-        `Сформулируй профессиональные требования к кандидату на должность "${title}" в университете. 5-7 пунктов списком. Только пункты, без вступления.`
+        `Сформулируй профессиональные требования к кандидату на должность "${title}" в университете.
+Опыт работы: ${exp}
+${phdReq}
+5-7 пунктов списком. Только пункты, без вступления.`
       );
       setReqs(out.trim());
       log("success", `HR Агент: сгенерированы требования для "${title}"`);
-    } catch (e: any) { toast.error(e.message); } finally { setGen(null); }
+      
+      // Auto-generate description after requirements
+      setGenDesc(true);
+      try {
+        const descOut = await complete(
+          `Составь полное описание вакансии в университете на должность "${title}".
+Требования: ${out.trim()}
+Опыт работы: ${exp}
+${phdReq}
+Заработная плата: По договорённости
+Профессиональный тон, на русском. Включи: О роли, Обязанности, Требования, Условия. Готовый текст для публикации.`
+        );
+        setDesc(descOut.trim());
+        log("success", `HR Агент: описание вакансии "${title}" готово`);
+      } catch (e: any) {
+        toast.error(e.message);
+      } finally {
+        setGenDesc(false);
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setGenReqs(false);
+    }
   }
 
-  async function genDescription() {
-    if (!title.trim()) return toast.error("Сначала укажите должность");
-    setGen("desc");
-    try {
-      const prompt = `Составь полное описание вакансии в университете на должность "${title}".
-Требования: ${reqs || "стандартные"}
-Опыт: ${exp}
-Зарплата: ${salFrom || "—"} — ${salTo || "—"} тенге
-Профессиональный тон, на русском. Включи: О роли, Обязанности, Требования, Условия. Готовый текст для публикации.`;
-      const out = await complete(prompt);
-      setDesc(out.trim());
-      log("success", `HR Агент: описание вакансии "${title}" готово`);
+  async function handleSubmit() {
+    if (!reqs || !desc) return toast.error("Дождитесь генерации требований и описания");
+    
+    setProcessing(true);
+    setPubStep(0);
+    setSearchStep(0);
+    log("processing", `HR Агент: отправка вакансии "${title}"`);
 
-      const c = await complete(
-        `Дай короткий комментарий HR-эксперта (2-3 предложения) к вакансии "${title}". Подскажи, что можно улучшить, и отметь сильные стороны. Без вступления.`
-      );
-      setAiComment(c.trim());
-    } catch (e: any) { toast.error(e.message); } finally { setGen(null); }
-  }
+    const now = new Date();
+    const timeline = [
+      { step: "Заявка создана", time: format(now, "HH:mm:ss", { locale: ru }) },
+    ];
 
-  async function publish(platform: string) {
-    setPub({ open: true, platform, step: 0 });
-    log("processing", `Публикация вакансии "${title}" на ${platform}`);
-    await wait(800); setPub((p) => ({ ...p, step: 1 }));
-    await wait(1000); setPub((p) => ({ ...p, step: 2 }));
-    await wait(900);
-    const id = Math.floor(10000000 + Math.random() * 89999999);
-    const host = platform.toLowerCase().includes("linkedin") ? "linkedin.com/jobs" : "hh.kz/vacancy";
-    const url = `${host}/${id}`;
-    setPub((p) => ({ ...p, step: 3, url }));
-    log("success", `Опубликовано: ${url}`);
+    // Parallel execution
+    await Promise.all([
+      (async () => {
+        await wait(800);
+        setPubStep(1);
+        await wait(800);
+        setPubStep(2);
+        await wait(800);
+        setPubStep(3);
+      })(),
+      (async () => {
+        await wait(800);
+        setSearchStep(1);
+        await wait(800);
+        setSearchStep(2);
+        await wait(800);
+        setSearchStep(3);
+      })(),
+    ]);
+
+    timeline.push({ step: "Отправлено агенту", time: format(new Date(now.getTime() + 800), "HH:mm:ss", { locale: ru }) });
+    timeline.push({ step: "Опубликовано на hh.kz", time: format(new Date(now.getTime() + 2400), "HH:mm:ss", { locale: ru }) });
+    timeline.push({ step: "Кандидаты найдены", time: format(new Date(now.getTime() + 2400), "HH:mm:ss", { locale: ru }) });
+
+    // Generate candidates
+    const candidatesOut = await complete(
+      `Сгенерируй JSON массив из 3 реалистичных кандидатов на должность "${title}" в Казахстане. Формат: {"candidates":[{"name":"...","experience":"...","match":число_70_99}]}. Имена казахские/русские. Только JSON.`,
+      { json: true, temperature: 0.8 }
+    );
+    const parsed = JSON.parse(candidatesOut);
+    const candidates = (parsed.candidates ?? []).slice(0, 3);
+
+    const vacancyId = Math.floor(10000000 + Math.random() * 89999999);
+    const url = `hh.kz/vacancy/${vacancyId}`;
+
+    setResult({
+      url,
+      publishedAt: format(now, "dd.MM.yyyy HH:mm", { locale: ru }),
+      candidates,
+      fullText: `ТРЕБОВАНИЯ:\n${reqs}\n\nОПИСАНИЕ ВАКАНСИИ:\n${desc}`,
+      timeline,
+    });
+
+    log("success", `HR Агент: вакансия "${title}" опубликована, найдено ${candidates.length} кандидатов`);
+    setProcessing(false);
   }
 
   return (
-    <div className="space-y-5">
-      <FieldCard label="Должность" hint="Например: Преподаватель математики">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Введите должность..." />
-      </FieldCard>
+    <div className="space-y-6">
+      <Card className="p-5 shadow-sm bg-card space-y-5">
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Должность</Label>
+          <Input 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            onBlur={handleTitleBlur}
+            placeholder="Например: Преподаватель математики" 
+          />
+        </div>
 
-      <FieldCard
-        label="Требования"
-        action={
-          <Button size="sm" variant="outline" onClick={genRequirements} disabled={gen === "req"}>
-            {gen === "req" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            Сгенерировать
-          </Button>
-        }
-      >
-        <Textarea value={reqs} onChange={(e) => setReqs(e.target.value)} rows={5} placeholder="Требования к кандидату..." />
-      </FieldCard>
+        <div className="flex items-center space-x-2">
+          <Checkbox 
+            id="phd" 
+            checked={requiresPhD}
+            onCheckedChange={(checked) => {
+              setRequiresPhD(checked as boolean);
+              if (title.trim()) handleTitleBlur();
+            }}
+          />
+          <label htmlFor="phd" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Требуется учёная степень (PhD / Кандидат наук)
+          </label>
+        </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FieldCard label="Опыт работы">
-          <Select value={exp} onValueChange={setExp}>
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Опыт работы</Label>
+          <Select value={exp} onValueChange={(value) => { setExp(value); if (title.trim()) handleTitleBlur(); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {["Без опыта", "От 1 года", "От 3 лет", "От 5 лет"].map((x) => (
+              {["Без опыта", "От 1 года", "От 3 лет", "От 5 лет", "От 10 лет"].map((x) => (
                 <SelectItem key={x} value={x}>{x}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </FieldCard>
-        <FieldCard label="Зарплата (тенге)">
-          <div className="flex items-center gap-2">
-            <Input value={salFrom} onChange={(e) => setSalFrom(e.target.value)} placeholder="от" />
-            <span className="text-muted-foreground text-sm">—</span>
-            <Input value={salTo} onChange={(e) => setSalTo(e.target.value)} placeholder="до" />
-          </div>
-        </FieldCard>
-      </div>
-
-      <FieldCard
-        label="Описание вакансии"
-        action={
-          <Button size="sm" variant="outline" onClick={genDescription} disabled={gen === "desc"}>
-            {gen === "desc" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            Автозаполнить описание
-          </Button>
-        }
-      >
-        <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={10} placeholder="Текст вакансии появится здесь..." />
-      </FieldCard>
-
-      {aiComment && (
-        <Card className="p-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50 shadow-none">
-          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">💡 Комментарий ИИ</div>
-          <div className="text-sm text-blue-900 dark:text-blue-100 leading-relaxed">{aiComment}</div>
-        </Card>
-      )}
-
-      <Card className="p-4 shadow-sm bg-card">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Публикация</div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => publish("LinkedIn")}><Linkedin className="w-4 h-4" /> LinkedIn</Button>
-          <Button variant="outline" onClick={() => publish("hh.kz")}><Globe className="w-4 h-4" /> hh.kz</Button>
-          <Button onClick={() => publish("LinkedIn и hh.kz")}><Send className="w-4 h-4" /> Опубликовать везде</Button>
         </div>
+
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Требования</Label>
+          <div className="relative">
+            <Textarea 
+              value={reqs} 
+              readOnly={!isEditable}
+              rows={5} 
+              placeholder="Требования сгенерируются автоматически..." 
+              className={isEditable ? "" : "bg-muted/50"}
+            />
+            {genReqs && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Описание вакансии</Label>
+          <div className="relative">
+            <Textarea 
+              value={desc} 
+              readOnly={!isEditable}
+              rows={10} 
+              placeholder="Описание сгенерируется автоматически..." 
+              className={isEditable ? "" : "bg-muted/50"}
+            />
+            {genDesc && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Button 
+          onClick={handleSubmit} 
+          disabled={!reqs || !desc || processing}
+          className="w-full h-12 text-base"
+        >
+          {processing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
+          Отправить ИИ Агенту
+        </Button>
       </Card>
 
-      <Dialog open={pub.open} onOpenChange={(v) => !v && setPub({ open: false, platform: "", step: 0 })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Публикация вакансии</DialogTitle>
-            <DialogDescription>{title || "Вакансия"} → {pub.platform}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2.5 py-2">
-            <StepLine done={pub.step > 0} active={pub.step === 0} text="Подготовка вакансии..." />
-            <StepLine done={pub.step > 1} active={pub.step === 1} text={`Отправка на ${pub.platform}...`} />
-            <StepLine done={pub.step >= 3} active={pub.step === 2} text="Успешно опубликовано!" />
+      {processing && (
+        <div className="grid grid-cols-2 gap-6">
+          <Card className="p-5 shadow-sm bg-card space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Globe2 className="w-4 h-4" />
+              Публикация вакансии
+            </div>
+            <StepLine done={pubStep > 0} active={pubStep === 0} text="Подготовка вакансии..." />
+            <StepLine done={pubStep > 1} active={pubStep === 1} text="Отправка на hh.kz..." />
+            <StepLine done={pubStep >= 3} active={pubStep === 2} text="Опубликовано ✓" />
+          </Card>
+
+          <Card className="p-5 shadow-sm bg-card space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Users className="w-4 h-4" />
+              Поиск кандидатов
+            </div>
+            <StepLine done={searchStep > 0} active={searchStep === 0} text="Подключение к hh.kz..." />
+            <StepLine done={searchStep > 1} active={searchStep === 1} text="Анализ резюме..." />
+            <StepLine done={searchStep >= 3} active={searchStep === 2} text="Найдено 5 кандидатов ✓" />
+          </Card>
+        </div>
+      )}
+
+      {result && (
+        <Card className="p-6 shadow-sm bg-card space-y-6">
+          <Section1 result={result} />
+          <Section2 result={result} />
+          <Section3 result={result} isEditable={isEditable} setIsEditable={setIsEditable} accordionOpen={accordionOpen} setAccordionOpen={setAccordionOpen} />
+          <Section4 result={result} />
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function Section1({ result }: { result: any }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Статус публикации</h3>
+      <div className="flex items-center gap-3">
+        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200">
+          <Check className="w-3 h-3 mr-1" />
+          Опубликовано на hh.kz
+        </Badge>
+      </div>
+      <div className="flex items-center gap-2">
+        <code className="text-sm bg-muted px-2 py-1 rounded">{result.url}</code>
+        <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(result.url); toast.success("Скопировано"); }}>
+          <Copy className="w-4 h-4" />
+        </Button>
+      </div>
+      <div className="text-xs text-muted-foreground">Опубликовано: {result.publishedAt}</div>
+    </div>
+  );
+}
+
+function Section2({ result }: { result: any }) {
+  const router = useRouter();
+  
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Найденные кандидаты</h3>
+      <div className="grid grid-cols-3 gap-3">
+        {result.candidates.map((c: any, i: number) => (
+          <Card key={i} className="p-3 bg-muted/50">
+            <div className="font-medium text-sm">{c.name}</div>
+            <div className="text-xs text-muted-foreground mt-1">{c.experience}</div>
+            <Badge variant="outline" className="mt-2 text-xs">
+              Совпадение: {c.match}%
+            </Badge>
+          </Card>
+        ))}
+      </div>
+      <Button variant="outline" onClick={() => router.navigate({ to: "/hr", search: { tab: "search" } })}>
+        Смотреть всех кандидатов →
+      </Button>
+    </div>
+  );
+}
+
+function Section3({ result, isEditable, setIsEditable, accordionOpen, setAccordionOpen }: any) {
+  return (
+    <div className="space-y-3">
+      <Collapsible open={accordionOpen} onOpenChange={setAccordionOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Полное описание вакансии</h3>
+            {accordionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 mt-3">
+          <Textarea 
+            value={result.fullText}
+            readOnly={!isEditable}
+            rows={12}
+            className={isEditable ? "" : "bg-muted/50"}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(result.fullText); toast.success("Скопировано"); }}>
+              <Copy className="w-4 h-4 mr-1" /> Копировать
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setIsEditable(!isEditable)}>
+              <Edit3 className="w-4 h-4 mr-1" /> {isEditable ? "Сохранить" : "Редактировать"}
+            </Button>
           </div>
-          {pub.step >= 3 && pub.url && (
-            <Card className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600" />
-              <code className="flex-1 text-sm">{pub.url}</code>
-              <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(pub.url!); toast.success("Скопировано"); }}>
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-            </Card>
-          )}
-        </DialogContent>
-      </Dialog>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+function Section4({ result }: { result: any }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Статус заявки</h3>
+      <div className="space-y-2">
+        {result.timeline.map((item: any, i: number) => (
+          <div key={i} className="flex items-center gap-3 text-sm">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="flex-1">{item.step}</span>
+            <span className="text-muted-foreground">{item.time}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
