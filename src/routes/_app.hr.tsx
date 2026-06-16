@@ -41,9 +41,11 @@ function HRPage() {
         <TabsList>
           <TabsTrigger value="vacancy">Создать вакансию</TabsTrigger>
           <TabsTrigger value="search">Поиск кандидатов</TabsTrigger>
+          <TabsTrigger value="history">История вакансий</TabsTrigger>
         </TabsList>
         <TabsContent value="vacancy" className="mt-6"><VacancyBuilder /></TabsContent>
         <TabsContent value="search" className="mt-6"><CandidateSearch /></TabsContent>
+        <TabsContent value="history" className="mt-6"><VacancyHistory /></TabsContent>
       </Tabs>
     </div>
   );
