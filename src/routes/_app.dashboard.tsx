@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useActivity } from "@/lib/activity-log";
+import { collection, getDocs, query, Timestamp, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   ArrowUpRight, Bot, Briefcase, Building2, GraduationCap, Workflow,
   CheckCircle2, Loader2, Clock,
@@ -35,12 +37,40 @@ const agents = [
 function Dashboard() {
   const now = useClock();
   const { entries } = useActivity();
+  const [counts, setCounts] = useState({ today: 0, completed: 0, inProgress: 0 });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const startTs = Timestamp.fromDate(startOfDay);
+
+        const todayQ = query(collection(db, "aho_requests"), where("createdAt", ">=", startTs));
+        const allSnap = await getDocs(collection(db, "aho_requests"));
+        const todaySnap = await getDocs(todayQ);
+
+        let completed = 0;
+        let inProgress = 0;
+        allSnap.forEach((d) => {
+          const s = (d.data() as any).status;
+          if (s === "completed") completed++;
+          else if (s === "in_progress") inProgress++;
+        });
+        setCounts({ today: todaySnap.size, completed, inProgress });
+      } catch (e) {
+        console.warn("Failed to load dashboard counts:", e);
+      }
+    })();
+  }, []);
+
   const metrics = [
     { label: "Активных агентов", value: "4", icon: Bot },
-    { label: "Задач сегодня", value: "37", icon: Clock },
-    { label: "Выполнено", value: "29", icon: CheckCircle2 },
-    { label: "В процессе", value: "8", icon: Loader2 },
+    { label: "Задач сегодня", value: String(counts.today), icon: Clock },
+    { label: "Выполнено", value: String(counts.completed), icon: CheckCircle2 },
+    { label: "В процессе", value: String(counts.inProgress), icon: Loader2 },
   ];
+
 
   return (
     <div className="p-8 space-y-8 max-w-6xl">

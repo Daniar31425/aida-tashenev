@@ -15,6 +15,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useRole } from "@/lib/useRole";
+import { addDoc, collection, getDocs, updateDoc, doc, orderBy, query, Timestamp, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 
 export const Route = createFileRoute("/_app/aho")({
   head: () => ({ meta: [{ title: "Агент АХО — AIDA" }] }),
@@ -81,33 +84,60 @@ function AHOPage() {
 
   const [history, setHistory] = useState<RequestHistory[]>([]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("aho_history");
-    if (stored) {
-      setHistory(JSON.parse(stored));
+  async function loadHistory() {
+    try {
+      const q = query(collection(db, "aho_requests"), orderBy("createdAt", "desc"), limit(20));
+      const snap = await getDocs(q);
+      const items: RequestHistory[] = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          date: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          type: data.type,
+          name: data.name,
+          quantity: data.quantity,
+          urgency: data.urgency,
+          status: data.status,
+        };
+      });
+      setHistory(items);
+    } catch (e) {
+      console.warn("Failed to load AHO history:", e);
     }
+  }
+
+  useEffect(() => {
+    loadHistory();
   }, []);
 
-  const saveToHistory = (request: Omit<RequestHistory, "id" | "date">) => {
-    const newEntry: RequestHistory = {
-      ...request,
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-    };
-    const updated = [newEntry, ...history].slice(0, 5);
-    setHistory(updated);
-    localStorage.setItem("aho_history", JSON.stringify(updated));
+  const saveToHistory = async (request: Omit<RequestHistory, "id" | "date">) => {
+    try {
+      const ref = await addDoc(collection(db, "aho_requests"), {
+        ...request,
+        createdAt: Timestamp.now(),
+      });
+      const newEntry: RequestHistory = {
+        ...request,
+        id: ref.id,
+        date: new Date().toISOString(),
+      };
+      setHistory((prev) => [newEntry, ...prev].slice(0, 20));
+    } catch (e) {
+      console.warn("Failed to save AHO request:", e);
+    }
   };
 
-  const updateStatus = (id: string, newStatus: "completed" | "rejected") => {
-    const updated = history.map((item) =>
-      item.id === id ? { ...item, status: newStatus } : item
-    );
-    setHistory(updated);
-    localStorage.setItem("aho_history", JSON.stringify(updated));
+  const updateStatus = async (id: string, newStatus: "completed" | "rejected") => {
+    try {
+      await updateDoc(doc(db, "aho_requests", id), { status: newStatus });
+    } catch (e) {
+      console.warn("Failed to update status:", e);
+    }
+    setHistory((prev) => prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item)));
     toast.success(`Статус изменен на "${newStatus === "completed" ? "Выполнено" : "Отклонено"}"`);
     log("info", `АХО Агент: статус заявки изменен на "${newStatus}"`);
   };
+
 
   async function generateJustification() {
     if (!materialType || !itemName) {
