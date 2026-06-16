@@ -168,6 +168,22 @@ ${phdReq}
     });
 
     log("success", `HR Агент: вакансия "${title}" опубликована, найдено ${candidates.length} кандидатов`);
+
+    try {
+      await addDoc(collection(db, "vacancies"), {
+        title,
+        experience: exp,
+        requiresPhD,
+        requirements: reqs,
+        description: desc,
+        url,
+        candidatesCount: candidates.length,
+        publishedAt: Timestamp.now(),
+      });
+    } catch (e) {
+      console.warn("Failed to save vacancy:", e);
+    }
+
     setProcessing(false);
   }
 
