@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { db } from "./firebase";
 
 export type ActivityKind = "info" | "success" | "processing" | "error";
 export interface ActivityEntry {
@@ -34,6 +36,12 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const log = (kind: ActivityKind, text: string) => {
     const time = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setEntries((p) => [{ id: Math.random().toString(36).slice(2), time, kind, text }, ...p].slice(0, 100));
+    // Persist to Firestore (fire and forget)
+    addDoc(collection(db, "events"), {
+      kind,
+      text,
+      createdAt: Timestamp.now(),
+    }).catch((e) => console.warn("Failed to log event to Firestore:", e));
   };
   const clear = () => setEntries([]);
 
@@ -45,3 +53,4 @@ export function useActivity() {
   if (!ctx) throw new Error("useActivity outside provider");
   return ctx;
 }
+
