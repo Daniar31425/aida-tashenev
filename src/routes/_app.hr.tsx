@@ -17,6 +17,9 @@ import { useActivity } from "@/lib/activity-log";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 
 export const Route = createFileRoute("/_app/hr")({
   head: () => ({ meta: [{ title: "HR Агент — AIDA" }] }),
