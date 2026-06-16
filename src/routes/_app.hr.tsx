@@ -11,13 +11,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ChevronDown, ChevronUp, Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText, Globe2, Users, Clock, Edit3 } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText, Globe2, Users, Clock, Edit3, Inbox } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGroq } from "@/lib/useGroq";
 import { useActivity } from "@/lib/activity-log";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
+import { useEffect } from "react";
 import { db } from "@/lib/firebase";
 
 
@@ -38,9 +41,11 @@ function HRPage() {
         <TabsList>
           <TabsTrigger value="vacancy">Создать вакансию</TabsTrigger>
           <TabsTrigger value="search">Поиск кандидатов</TabsTrigger>
+          <TabsTrigger value="history">История вакансий</TabsTrigger>
         </TabsList>
         <TabsContent value="vacancy" className="mt-6"><VacancyBuilder /></TabsContent>
         <TabsContent value="search" className="mt-6"><CandidateSearch /></TabsContent>
+        <TabsContent value="history" className="mt-6"><VacancyHistory /></TabsContent>
       </Tabs>
     </div>
   );
@@ -591,4 +596,170 @@ function pluralYears(n: number) {
   if (m === 1 && k !== 11) return "год";
   if (m >= 2 && m <= 4 && (k < 12 || k > 14)) return "года";
   return "лет";
+}
+
+// -------- Vacancy History --------
+
+interface VacancyRecord {
+  id: string;
+  title: string;
+  experience: string;
+  requiresPhD: boolean;
+  requirements: string;
+  description: string;
+  url: string;
+  candidatesCount: number;
+  publishedAt: Date;
+}
+
+function VacancyHistory() {
+  const [items, setItems] = useState<VacancyRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState<"new" | "old">("new");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const snap = await getDocs(query(collection(db, "vacancies"), orderBy("publishedAt", "desc")));
+        const list: VacancyRecord[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            title: data.title ?? "",
+            experience: data.experience ?? "",
+            requiresPhD: !!data.requiresPhD,
+            requirements: data.requirements ?? "",
+            description: data.description ?? "",
+            url: data.url ?? "",
+            candidatesCount: data.candidatesCount ?? 0,
+            publishedAt: data.publishedAt?.toDate?.() ?? new Date(),
+          };
+        });
+        setItems(list);
+      } catch (e) {
+        console.warn(e);
+        toast.error("Не удалось загрузить вакансии");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filtered = items
+    .filter((v) => v.title.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) =>
+      sort === "new"
+        ? b.publishedAt.getTime() - a.publishedAt.getTime()
+        : a.publishedAt.getTime() - b.publishedAt.getTime()
+    );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          Всего вакансий: <span className="font-medium text-foreground">{items.length}</span>
+        </div>
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск по должности"
+              className="pl-8 w-64"
+            />
+          </div>
+          <Select value={sort} onValueChange={(v) => setSort(v as "new" | "old")}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">Сначала новые</SelectItem>
+              <SelectItem value="old">Сначала старые</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="p-5 shadow-sm bg-card space-y-3">
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-1/3" />
+            </Card>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-10 shadow-sm bg-card flex flex-col items-center justify-center text-center">
+          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3">
+            <Inbox className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Вакансий пока нет — создайте первую во вкладке «Создать вакансию»
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((v) => (
+            <VacancyCard key={v.id} v={v} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VacancyCard({ v }: { v: VacancyRecord }) {
+  return (
+    <Card className="p-5 shadow-sm bg-card border rounded-xl space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-lg font-semibold tracking-tight">{v.title}</h3>
+        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 shrink-0">
+          <Check className="w-3 h-3 mr-1" />
+          Опубликовано
+        </Badge>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{v.experience}</span>
+        {v.requiresPhD && (
+          <span className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />Требуется учёная степень</span>
+        )}
+        <span>{format(v.publishedAt, "dd.MM.yyyy", { locale: ru })}</span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <code className="text-xs bg-muted px-2 py-1 rounded">{v.url}</code>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => { navigator.clipboard.writeText(v.url); toast.success("Скопировано"); }}
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm">
+        <Users className="w-4 h-4 text-muted-foreground" />
+        <span>Найдено кандидатов: <span className="font-medium">{v.candidatesCount}</span></span>
+      </div>
+
+      <Accordion type="single" collapsible>
+        <AccordionItem value="desc" className="border-b-0">
+          <AccordionTrigger className="text-sm font-medium py-2">Описание вакансии</AccordionTrigger>
+          <AccordionContent>
+            <div className="text-sm whitespace-pre-wrap text-muted-foreground">
+              {v.description}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <div className="text-xs text-muted-foreground border-t pt-3">
+        Создана: {format(v.publishedAt, "dd.MM.yyyy HH:mm", { locale: ru })}
+      </div>
+    </Card>
+  );
 }
