@@ -10,13 +10,19 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
   };
 
   try {
-    const { imageUrl, caption } = await context.request.json() as {
+    const { imageUrl, caption: rawCaption } = await context.request.json() as {
       imageUrl: string;
       caption: string;
     };
 
     const accessToken = context.env.INSTAGRAM_ACCESS_TOKEN;
     const igUserId = context.env.INSTAGRAM_USER_ID;
+
+    // Truncate caption if too long (Instagram limit is 2200 characters)
+    const MAX_CAPTION_LENGTH = 2200;
+    const caption = rawCaption.length > MAX_CAPTION_LENGTH 
+      ? rawCaption.substring(0, MAX_CAPTION_LENGTH - 3) + '...'
+      : rawCaption;
 
     if (!imageUrl || !caption) {
       return new Response(

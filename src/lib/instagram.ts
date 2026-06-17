@@ -29,19 +29,24 @@ async function handle(res: Response) {
 }
 
 export async function publishJobPost(imageUrl: string, caption: string) {
+  // Обрезаем caption до 1800 символов
+  const safeCaption = caption.length > 1800
+    ? caption.substring(0, 1797) + '...'
+    : caption;
+
   const res = await fetch('/api/instagram', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       imageUrl,
-      caption,
+      caption: safeCaption,
       accessToken: TOKEN,
       igUserId: USER_ID,
     }),
   });
 
   const data = await res.json();
-  
+
   if (!res.ok || data.error) {
     throw new InstagramError(data.error || 'Failed to publish to Instagram', {
       status: res.status,
@@ -119,8 +124,8 @@ export async function publishStory(imageUrl: string): Promise<void> {
         access_token: TOKEN
       })
     }
-  )
-  const { id: creationId } = await handle(containerRes)
+  );
+  const { id: creationId } = await handle(containerRes);
 
   // Step 2: Publish
   const publishRes = await fetch(
@@ -133,6 +138,6 @@ export async function publishStory(imageUrl: string): Promise<void> {
         access_token: TOKEN
       })
     }
-  )
-  await handle(publishRes)
+  );
+  await handle(publishRes);
 }
