@@ -1,10 +1,15 @@
 import { useCallback } from "react";
 
-const SYSTEM = `Ты HR-агент университета в Казахстане. Создаёшь профессиональные вакансии, анализируешь кандидатов, пишешь уведомления. Отвечай на русском языке. Ответы готовые к использованию, без лишних пояснений.`;
+const DEFAULT_SYSTEM = `Ты HR-агент университета в Казахстане. Создаёшь профессиональные вакансии, анализируешь кандидатов, пишешь уведомления. Отвечай на русском языке. Ответы готовые к использованию, без лишних пояснений.`;
 
 export function getGroqKey(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("groq_api_key");
+}
+
+export function getSystemPrompt(): string {
+  if (typeof window === "undefined") return DEFAULT_SYSTEM;
+  return localStorage.getItem("groq_system_prompt") || DEFAULT_SYSTEM;
 }
 
 export interface GroqOptions {
@@ -27,7 +32,7 @@ export function useGroq() {
         model: "llama-3.3-70b-versatile",
         temperature: opts.temperature ?? 0.6,
         messages: [
-          { role: "system", content: opts.system ?? SYSTEM },
+          { role: "system", content: opts.system ?? getSystemPrompt() },
           { role: "user", content: prompt },
         ],
         ...(opts.json ? { response_format: { type: "json_object" } } : {}),
