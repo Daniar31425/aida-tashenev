@@ -17,6 +17,7 @@ import { Route as AppInstagramRouteImport } from './routes/_app.instagram'
 import { Route as AppHrRouteImport } from './routes/_app.hr'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAhoRouteImport } from './routes/_app.aho'
+import { Route as AppInstagramRouteImport } from './routes/_app.instagram'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -55,6 +56,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
 const AppAhoRoute = AppAhoRouteImport.update({
   id: '/aho',
   path: '/aho',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInstagramRoute = AppInstagramRouteImport.update({
+  id: '/instagram',
+  path: '/instagram',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -179,6 +185,13 @@ declare module '@tanstack/react-router' {
       path: '/aho'
       fullPath: '/aho'
       preLoaderRoute: typeof AppAhoRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/instagram': {
+      id: '/_app/instagram'
+      path: '/instagram'
+      fullPath: '/instagram'
+      preLoaderRoute: typeof AppInstagramRouteImport
       parentRoute: typeof AppRoute
     }
   }
