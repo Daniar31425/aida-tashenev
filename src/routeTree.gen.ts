@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppOrchestratorRouteImport } from './routes/_app.orchestrator'
+import { Route as AppInstagramRouteImport } from './routes/_app.instagram'
 import { Route as AppHrRouteImport } from './routes/_app.hr'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAhoRouteImport } from './routes/_app.aho'
@@ -36,6 +37,11 @@ const AppOrchestratorRoute = AppOrchestratorRouteImport.update({
   path: '/orchestrator',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInstagramRoute = AppInstagramRouteImport.update({
+  id: '/instagram',
+  path: '/instagram',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppHrRoute = AppHrRouteImport.update({
   id: '/hr',
   path: '/hr',
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/aho': typeof AppAhoRoute
   '/dashboard': typeof AppDashboardRoute
   '/hr': typeof AppHrRoute
+  '/instagram': typeof AppInstagramRoute
   '/orchestrator': typeof AppOrchestratorRoute
   '/settings': typeof AppSettingsRoute
 }
@@ -65,6 +72,7 @@ export interface FileRoutesByTo {
   '/aho': typeof AppAhoRoute
   '/dashboard': typeof AppDashboardRoute
   '/hr': typeof AppHrRoute
+  '/instagram': typeof AppInstagramRoute
   '/orchestrator': typeof AppOrchestratorRoute
   '/settings': typeof AppSettingsRoute
 }
@@ -75,14 +83,29 @@ export interface FileRoutesById {
   '/_app/aho': typeof AppAhoRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/hr': typeof AppHrRoute
+  '/_app/instagram': typeof AppInstagramRoute
   '/_app/orchestrator': typeof AppOrchestratorRoute
   '/_app/settings': typeof AppSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/aho' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
+  fullPaths:
+    | '/'
+    | '/aho'
+    | '/dashboard'
+    | '/hr'
+    | '/instagram'
+    | '/orchestrator'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/aho' | '/dashboard' | '/hr' | '/orchestrator' | '/settings'
+  to:
+    | '/'
+    | '/aho'
+    | '/dashboard'
+    | '/hr'
+    | '/instagram'
+    | '/orchestrator'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -90,6 +113,7 @@ export interface FileRouteTypes {
     | '/_app/aho'
     | '/_app/dashboard'
     | '/_app/hr'
+    | '/_app/instagram'
     | '/_app/orchestrator'
     | '/_app/settings'
   fileRoutesById: FileRoutesById
@@ -129,6 +153,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrchestratorRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/instagram': {
+      id: '/_app/instagram'
+      path: '/instagram'
+      fullPath: '/instagram'
+      preLoaderRoute: typeof AppInstagramRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/hr': {
       id: '/_app/hr'
       path: '/hr'
@@ -157,6 +188,7 @@ interface AppRouteChildren {
   AppAhoRoute: typeof AppAhoRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppHrRoute: typeof AppHrRoute
+  AppInstagramRoute: typeof AppInstagramRoute
   AppOrchestratorRoute: typeof AppOrchestratorRoute
   AppSettingsRoute: typeof AppSettingsRoute
 }
@@ -165,6 +197,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAhoRoute: AppAhoRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppHrRoute: AppHrRoute,
+  AppInstagramRoute: AppInstagramRoute,
   AppOrchestratorRoute: AppOrchestratorRoute,
   AppSettingsRoute: AppSettingsRoute,
 }
