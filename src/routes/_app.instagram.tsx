@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Send, Instagram as InstagramIcon, ImageIcon } from "lucide-react";
+import html2canvas from "html2canvas";
+import { Heart, MessageCircle, Send, Instagram as InstagramIcon, ImageIcon, Eye } from "lucide-react";
 import {
   publishJobPost,
   getPublishedPosts,
@@ -17,6 +18,8 @@ import {
   type IGPost,
   type IGConversation,
 } from "@/lib/instagram";
+import { uploadToImgBB } from "@/lib/imgbb";
+import { VacancyCard } from "@/components/VacancyCard";
 import { useActivity } from "@/lib/activity-log";
 import { useRole } from "@/lib/useRole";
 
@@ -80,9 +83,24 @@ function InstagramPage() {
 
 function PublishTab() {
   const { log } = useActivity();
-  const [imageUrl, setImageUrl] = useState("");
+  const [position, setPosition] = useState("");
+  const [description, setDescription] = useState("");
+  const [requirementsText, setRequirementsText] = useState("");
+  const [conditionsText, setConditionsText] = useState("");
   const [caption, setCaption] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const requirements = useMemo(
+    () => requirementsText.split("\n").map((s) => s.trim()).filter(Boolean),
+    [requirementsText],
+  );
+  const conditions = useMemo(
+    () => conditionsText.split("\n").map((s) => s.trim()).filter(Boolean),
+    [conditionsText],
+  );
 
   const [posts, setPosts] = useState<IGPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,21 +120,63 @@ function PublishTab() {
     };
   }, [reloadKey]);
 
+  async function captureBlob(): Promise<Blob> {
+    if (!cardRef.current) throw new Error("Карточка не готова");
+    const canvas = await html2canvas(cardRef.current, {
+      width: 1080,
+      height: 1920,
+      scale: 1,
+      backgroundColor: "#FFFFFF",
+      useCORS: true,
+    });
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.92);
+    });
+  }
+
   async function onPublish() {
-    if (!imageUrl.trim() || !caption.trim()) {
-      toast.error("Заполните URL изображения и описание");
+    if (!position.trim() || !caption.trim()) {
+      toast.error("Заполните должность и текст поста");
       return;
     }
     setPublishing(true);
+
+    let blob: Blob;
     try {
-      await publishJobPost(imageUrl.trim(), caption.trim());
-      toast.success("Вакансия опубликована в Instagram");
-      log("success", "Опубликована вакансия в Instagram");
-      setImageUrl("");
+      blob = await captureBlob();
+    } catch (e) {
+      console.error(e);
+      toast.error("Ошибка генерации карточки");
+      setPublishing(false);
+      return;
+    }
+
+    let imageUrl: string;
+    try {
+      imageUrl = await uploadToImgBB(blob);
+    } catch (e) {
+      console.error(e);
+      toast.error("Ошибка загрузки изображения");
+      setPublishing(false);
+      return;
+    }
+
+    try {
+      await publishJobPost(imageUrl, caption.trim());
+      toast.success("Вакансия опубликована в Instagram! ✅");
+      log("success", `Опубликована вакансия в Instagram: ${position}`);
+      setPosition("");
+      setDescription("");
+      setRequirementsText("");
+      setConditionsText("");
       setCaption("");
       setReloadKey((k) => k + 1);
     } catch (e) {
-      handleApiError(e, "Не удалось опубликовать пост");
+      if (e instanceof InstagramError && e.isTokenExpired) {
+        toast.error("Токен Instagram истёк, обновите его в настройках");
+      } else {
+        toast.error("Ошибка публикации в Instagram");
+      }
       log("error", "Ошибка публикации в Instagram");
     } finally {
       setPublishing(false);
@@ -125,31 +185,101 @@ function PublishTab() {
 
   return (
     <div className="space-y-6">
+      {/* Hidden offscreen card used for capture */}
+      <div style={{ position: "absolute", left: -99999, top: 0, pointerEvents: "none" }} aria-hidden>
+        <VacancyCard
+          ref={cardRef}
+          position={position || "Должность"}
+          description={description || "Описание роли"}
+          requirements={requirements}
+          conditions={conditions}
+        />
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Новая публикация</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">URL изображения</label>
-            <Input
-              placeholder="https://..."
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-sm font-medium">Должность</label>
+              <Input
+                placeholder="Преподаватель математики"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-sm font-medium">Описание роли</label>
+              <Textarea
+                rows={3}
+                placeholder="Кратко о роли"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Требования (по одному на строку)</label>
+              <Textarea
+                rows={5}
+                placeholder={"Высшее образование\nОпыт от 3 лет\nЗнание английского"}
+                value={requirementsText}
+                onChange={(e) => setRequirementsText(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Условия (по одному на строку)</label>
+              <Textarea
+                rows={5}
+                placeholder={"Конкурентная зарплата\nГибкий график\nМедицинская страховка"}
+                value={conditionsText}
+                onChange={(e) => setConditionsText(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-sm font-medium">Текст поста для Instagram</label>
+              <Textarea
+                rows={5}
+                placeholder="Текст вакансии с #хэштегами"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Описание вакансии</label>
-            <Textarea
-              rows={6}
-              placeholder="Текст вакансии с #хэштегами"
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-            />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setShowPreview((v) => !v)}>
+              <Eye className="w-4 h-4 mr-1.5" />
+              {showPreview ? "Скрыть предпросмотр" : "Предпросмотр карточки"}
+            </Button>
+            <Button onClick={onPublish} disabled={publishing}>
+              {publishing ? "Публикация…" : "Опубликовать"}
+            </Button>
           </div>
-          <Button onClick={onPublish} disabled={publishing}>
-            {publishing ? "Публикация…" : "Опубликовать в Instagram"}
-          </Button>
+
+          {showPreview && (
+            <div className="rounded-xl border bg-muted/30 p-4 overflow-hidden flex justify-center">
+              <div style={{ width: 1080 * 0.3, height: 1920 * 0.3, position: "relative" }}>
+                <div
+                  style={{
+                    transform: "scale(0.3)",
+                    transformOrigin: "top left",
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                  }}
+                >
+                  <VacancyCard
+                    position={position || "Должность"}
+                    description={description || "Описание роли"}
+                    requirements={requirements}
+                    conditions={conditions}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
