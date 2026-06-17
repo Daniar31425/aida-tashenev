@@ -61,13 +61,14 @@ function SettingsPage() {
           {dark ? "Светлая" : "Тёмная"}
         </Button>
       </header>
-
-      {!groq && (
+            {!groq && (
         <Card className="p-4 shadow-sm bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900/50 flex gap-3 items-start">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div>
             <div className="font-semibold text-amber-900 dark:text-amber-200 text-sm">Не задан Groq API ключ</div>
-            <div className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">Без ключа ИИ-функции (генерация вакансий, кандидатов, оркестратор) не работают. Получите ключ на console.groq.com.</div>
+            <div className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+              Без ключа ИИ-функции не работают. Получите ключ на console.groq.com.
+            </div>
           </div>
         </Card>
       )}
@@ -77,4 +78,109 @@ function SettingsPage() {
         <Field label="Название университета">
           <Input value={uni} onChange={(e) => setUni(e.target.value)} placeholder="Например: КазНУ им. аль-Фараби" />
         </Field>
-        <Field label="Роль пользователя" hint="Определяет доступ к функциям системы">…
+        <Field label="Роль пользователя" hint="Определяет доступ к функциям системы">
+          <Select value={role} onValueChange={(value: any) => setRole(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {allRoles.map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    {label}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            Текущая роль: {roleLabel}
+          </Badge>
+        </div>
+      </Card>
+
+      <Card className="p-5 shadow-sm bg-card space-y-4">
+        <SectionTitle>ИИ — Groq</SectionTitle>
+        <Field label="Groq API Key" hint="Хранится только в вашем браузере (localStorage)">
+          <Input type="password" value={groq} onChange={(e) => setGroq(e.target.value)} placeholder="gsk_..." />
+        </Field>
+        <Field label="Системный промпт" hint="Инструкция для ИИ — как он должен отвечать и в каком стиле">
+          <Textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="Ты HR-агент..."
+            rows={5}
+            className="resize-none text-sm"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="mt-1 text-xs text-muted-foreground"
+            onClick={() => setSystemPrompt(DEFAULT_SYSTEM)}
+          >
+            Сбросить по умолчанию
+          </Button>
+        </Field>
+        <Button size="sm" onClick={() => toast.success("Настройки ИИ сохранены")}>
+          <Check className="w-3.5 h-3.5" /> Сохранить
+        </Button>
+      </Card>
+            <Card className="p-5 shadow-sm bg-card space-y-4">
+        <SectionTitle>Агенты</SectionTitle>
+        {[
+          ["orch", "ИИ Оркестратор"],
+          ["hr", "HR Агент"],
+          ["aho", "Агент АХО"],
+          ["adm", "Агент Приёмная комиссия"],
+        ].map(([k, label]) => (
+          <div key={k} className="flex items-center justify-between py-1.5">
+            <div className="text-sm">{label}</div>
+            <Switch
+              checked={(agents as any)[k]}
+              onCheckedChange={(v) => setAgents((p) => ({ ...p, [k]: v }))}
+            />
+          </div>
+        ))}
+      </Card>
+
+      <Card className="p-5 shadow-sm bg-card space-y-4">
+        <SectionTitle>Уведомления — Telegram</SectionTitle>
+        <Field label="Bot Token">
+          <Input type="password" value={tg} onChange={(e) => setTg(e.target.value)} placeholder="123456:ABC-..." />
+        </Field>
+        <Field label="Chat ID">
+          <Input value={tgChat} onChange={(e) => setTgChat(e.target.value)} placeholder="-100..." />
+        </Field>
+      </Card>
+
+      <Card className="p-5 shadow-sm bg-card space-y-4">
+        <SectionTitle>Интеграции — Источники кандидатов</SectionTitle>
+        <Field label="HH.kz API Token">
+          <Input type="password" value={hh} onChange={(e) => setHh(e.target.value)} placeholder="HH-..." />
+        </Field>
+        <Field label="LinkedIn">
+          <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-500/40">
+            Требуется партнёрский доступ
+          </Badge>
+        </Field>
+      </Card>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</div>;
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <Label className="text-sm font-medium mb-1.5 block">{label}</Label>
+      {children}
+      {hint && <div className="text-xs text-muted-foreground mt-1.5">{hint}</div>}
+    </div>
+  );
+}
