@@ -157,12 +157,44 @@ ${phdReq}
         log("info", "Карточка недоступна, пропускаем генерацию изображения");
       } else {
         const html2canvas = (await import('html2canvas')).default;
-        const canvas = await html2canvas(vacancyCardRef.current, {
+        const cardEl = vacancyCardRef.current;
+        
+        // Force legacy colors for html2canvas compatibility (fix oklch parsing error)
+        cardEl.style.setProperty('--background', '#ffffff');
+        cardEl.style.setProperty('--foreground', '#000000');
+        cardEl.style.setProperty('color', '#000000');
+        cardEl.style.setProperty('background-color', '#ffffff');
+        
+        // Replace all computed styles that contain oklch with fallback hex colors
+        const allElements = cardEl.querySelectorAll('*');
+        allElements.forEach(el => {
+          const htmlEl = el as HTMLElement;
+          const computed = window.getComputedStyle(htmlEl);
+          if (computed.backgroundColor.includes('oklch')) {
+            htmlEl.style.backgroundColor = '#ffffff';
+          }
+          if (computed.color.includes('oklch')) {
+            htmlEl.style.color = '#000000';
+          }
+        });
+        
+        // Apply to cardEl itself
+        const cardComputed = window.getComputedStyle(cardEl);
+        if (cardComputed.backgroundColor.includes('oklch')) {
+          cardEl.style.backgroundColor = '#ffffff';
+        }
+        if (cardComputed.color.includes('oklch')) {
+          cardEl.style.color = '#000000';
+        }
+        
+        const canvas = await html2canvas(cardEl, {
           width: 1080,
           height: 1920,
           scale: 1,
-          backgroundColor: "#FFFFFF",
           useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
         });
         
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b)));
@@ -174,7 +206,8 @@ ${phdReq}
     } catch (e) {
       console.error("Instagram upload failed:", e);
       log("error", "Ошибка загрузки изображения");
-      toast.error("Не удалось загрузить изображение для Instagram");
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Не удалось загрузить изображение: ${errorMessage}`);
     }
 
     // Step 3: Publish to Instagram
