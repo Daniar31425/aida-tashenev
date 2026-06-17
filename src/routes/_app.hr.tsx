@@ -22,10 +22,10 @@ import { ru } from "date-fns/locale";
 import { addDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
-import html2canvas from "html2canvas";
 import { VacancyCard } from "@/components/VacancyCard";
 import { uploadToImgBB } from "@/lib/imgbb";
 import { publishJobPost } from "@/lib/instagram";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 
 export const Route = createFileRoute("/_app/hr")({
@@ -35,23 +35,25 @@ export const Route = createFileRoute("/_app/hr")({
 
 function HRPage() {
   return (
-    <div className="p-8 max-w-5xl">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">HR Агент</h1>
-        <p className="text-sm text-muted-foreground mt-1">Создание вакансий и поиск кандидатов</p>
-      </header>
+    <ErrorBoundary>
+      <div className="p-8 max-w-5xl">
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">HR Агент</h1>
+          <p className="text-sm text-muted-foreground mt-1">Создание вакансий и поиск кандидатов</p>
+        </header>
 
-      <Tabs defaultValue="vacancy">
-        <TabsList>
-          <TabsTrigger value="vacancy">Создать вакансию</TabsTrigger>
-          <TabsTrigger value="search">Поиск кандидатов</TabsTrigger>
-          <TabsTrigger value="history">История вакансий</TabsTrigger>
-        </TabsList>
-        <TabsContent value="vacancy" className="mt-6"><VacancyBuilder /></TabsContent>
-        <TabsContent value="search" className="mt-6"><CandidateSearch /></TabsContent>
-        <TabsContent value="history" className="mt-6"><VacancyHistory /></TabsContent>
-      </Tabs>
-    </div>
+        <Tabs defaultValue="vacancy">
+          <TabsList>
+            <TabsTrigger value="vacancy">Создать вакансию</TabsTrigger>
+            <TabsTrigger value="search">Поиск кандидатов</TabsTrigger>
+            <TabsTrigger value="history">История вакансий</TabsTrigger>
+          </TabsList>
+          <TabsContent value="vacancy" className="mt-6"><VacancyBuilder /></TabsContent>
+          <TabsContent value="search" className="mt-6"><CandidateSearch /></TabsContent>
+          <TabsContent value="history" className="mt-6"><VacancyHistory /></TabsContent>
+        </Tabs>
+      </div>
+    </ErrorBoundary>
   );
 }
 
@@ -150,22 +152,29 @@ ${phdReq}
     
     let imageUrl: string | null = null;
     try {
-      if (!vacancyCardRef.current) throw new Error("VacancyCard ref not available");
-      
-      const canvas = await html2canvas(vacancyCardRef.current, {
-        width: 1080,
-        height: 1920,
-        scale: 1,
-        backgroundColor: "#FFFFFF",
-        useCORS: true,
-      });
-      
-      const blob = await new Promise<Blob>((resolve) => canvas.toBlob(resolve));
-      imageUrl = await uploadToImgBB(blob);
-      setInstaStep(2);
+      if (!vacancyCardRef.current) {
+        console.warn("VacancyCard ref not available, skipping image generation");
+        log("info", "Карточка недоступна, пропускаем генерацию изображения");
+      } else {
+        const html2canvas = (await import('html2canvas')).default;
+        const canvas = await html2canvas(vacancyCardRef.current, {
+          width: 1080,
+          height: 1920,
+          scale: 1,
+          backgroundColor: "#FFFFFF",
+          useCORS: true,
+        });
+        
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b)));
+        if (blob) {
+          imageUrl = await uploadToImgBB(blob);
+          setInstaStep(2);
+        }
+      }
     } catch (e) {
       console.error("Instagram upload failed:", e);
       log("error", "Ошибка загрузки изображения");
+      toast.error("Не удалось загрузить изображение для Instagram");
     }
 
     // Step 3: Publish to Instagram
@@ -179,6 +188,7 @@ ${phdReq}
       } catch (e) {
         console.error("Instagram publish failed:", e);
         log("error", "Ошибка публикации в Instagram");
+        toast.error("Не удалось опубликовать в Instagram");
       }
     }
 
@@ -781,7 +791,7 @@ function VacancyHistory() {
       ) : (
         <div className="space-y-3">
           {filtered.map((v) => (
-            <VacancyCard key={v.id} v={v} />
+            <VacancyHistoryCard key={v.id} v={v} />
           ))}
         </div>
       )}
@@ -789,7 +799,7 @@ function VacancyHistory() {
   );
 }
 
-function VacancyCard({ v }: { v: VacancyRecord }) {
+function VacancyHistoryCard({ v }: { v: VacancyRecord }) {
   return (
     <Card className="p-5 shadow-sm bg-card border rounded-xl space-y-4">
       <div className="flex items-start justify-between gap-3">
