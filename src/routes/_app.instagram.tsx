@@ -17,7 +17,7 @@ import {
   type IGPost,
   type IGConversation,
 } from "@/lib/instagram";
-import { useActivityLog } from "@/lib/activity-log";
+import { useActivity } from "@/lib/activity-log";
 import { useRole } from "@/lib/useRole";
 
 export const Route = createFileRoute("/_app/instagram")({
@@ -79,7 +79,7 @@ function InstagramPage() {
 }
 
 function PublishTab() {
-  const log = useActivityLog();
+  const { log } = useActivity();
   const [imageUrl, setImageUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [publishing, setPublishing] = useState(false);
