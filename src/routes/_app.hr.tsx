@@ -22,10 +22,10 @@ import { ru } from "date-fns/locale";
 import { addDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { VacancyCard } from "@/components/VacancyCard";
 import { uploadToImgBB } from "@/lib/imgbb";
 import { publishJobPost } from "@/lib/instagram";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { drawVacancyCardToCanvas } from "@/lib/canvasCard";
 
 
 export const Route = createFileRoute("/_app/hr")({
@@ -84,7 +84,6 @@ function VacancyBuilder() {
   } | null>(null);
 
   const [accordionOpen, setAccordionOpen] = useState(false);
-  const vacancyCardRef = useRef<HTMLDivElement>(null);
 
   async function handleTitleBlur() {
     if (!title.trim()) return;
@@ -152,57 +151,14 @@ ${phdReq}
     
     let imageUrl: string | null = null;
     try {
-      if (!vacancyCardRef.current) {
-        console.warn("VacancyCard ref not available, skipping image generation");
-        log("info", "Карточка недоступна, пропускаем генерацию изображения");
-      } else {
-        const html2canvas = (await import('html2canvas')).default;
-        const cardEl = vacancyCardRef.current;
-        
-        // Force legacy colors for html2canvas compatibility (fix oklch parsing error)
-        cardEl.style.setProperty('--background', '#ffffff');
-        cardEl.style.setProperty('--foreground', '#000000');
-        cardEl.style.setProperty('color', '#000000');
-        cardEl.style.setProperty('background-color', '#ffffff');
-        
-        // Replace all computed styles that contain oklch with fallback hex colors
-        const allElements = cardEl.querySelectorAll('*');
-        allElements.forEach(el => {
-          const htmlEl = el as HTMLElement;
-          const computed = window.getComputedStyle(htmlEl);
-          if (computed.backgroundColor.includes('oklch')) {
-            htmlEl.style.backgroundColor = '#ffffff';
-          }
-          if (computed.color.includes('oklch')) {
-            htmlEl.style.color = '#000000';
-          }
-        });
-        
-        // Apply to cardEl itself
-        const cardComputed = window.getComputedStyle(cardEl);
-        if (cardComputed.backgroundColor.includes('oklch')) {
-          cardEl.style.backgroundColor = '#ffffff';
-        }
-        if (cardComputed.color.includes('oklch')) {
-          cardEl.style.color = '#000000';
-        }
-        
-        const canvas = await html2canvas(cardEl, {
-          width: 1080,
-          height: 1920,
-          scale: 1,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        });
-        
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b)));
-        if (blob) {
-          imageUrl = await uploadToImgBB(blob);
-          setInstaStep(2);
-        }
-      }
+      const blob = await drawVacancyCardToCanvas({
+        position: title || "Должность",
+        description: desc || "Описание роли",
+        requirements: reqs.split("\n").map(s => s.trim()).filter(Boolean),
+        conditions: ["Конкурентная зарплата", "Гибкий график", "Медицинская страховка"],
+      });
+      imageUrl = await uploadToImgBB(blob);
+      setInstaStep(2);
     } catch (e) {
       console.error("Instagram upload failed:", e);
       log("error", "Ошибка загрузки изображения");
@@ -293,18 +249,6 @@ ${phdReq}
 
   return (
     <div className="space-y-6">
-      {/* Hidden off-screen VacancyCard for Instagram publishing */}
-      <div style={{ position: "absolute", left: "-9999px", top: 0, pointerEvents: "none" }} aria-hidden>
-        <div ref={vacancyCardRef}>
-          <VacancyCard
-            position={title || "Должность"}
-            description={desc || "Описание роли"}
-            requirements={reqs.split("\n").map(s => s.trim()).filter(Boolean)}
-            conditions={["Конкурентная зарплата", "Гибкий график", "Медицинская страховка"]}
-          />
-        </div>
-      </div>
-
       <Card className="p-5 shadow-sm bg-card space-y-5">
         <div>
           <Label className="text-sm font-medium mb-2 block">Должность</Label>

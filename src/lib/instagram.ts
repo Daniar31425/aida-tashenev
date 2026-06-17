@@ -29,19 +29,26 @@ async function handle(res: Response) {
 }
 
 export async function publishJobPost(imageUrl: string, caption: string) {
-  const containerRes = await fetch(`${BASE_URL}/${USER_ID}/media`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_url: imageUrl, caption, access_token: TOKEN }),
+  const res = await fetch('/api/instagram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      imageUrl,
+      caption,
+      accessToken: TOKEN,
+      igUserId: USER_ID,
+    }),
   });
-  const { id: creationId } = await handle(containerRes);
 
-  const publishRes = await fetch(`${BASE_URL}/${USER_ID}/media_publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ creation_id: creationId, access_token: TOKEN }),
-  });
-  return handle(publishRes);
+  const data = await res.json();
+  
+  if (!res.ok || data.error) {
+    throw new InstagramError(data.error || 'Failed to publish to Instagram', {
+      status: res.status,
+    });
+  }
+
+  return data;
 }
 
 export interface IGPost {
