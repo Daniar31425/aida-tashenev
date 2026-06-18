@@ -65,27 +65,36 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       );
     }
 
-    // Step 2: Publish the media
-    const publishRes = await fetch(
-      `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ creation_id: creationId, access_token: accessToken })
-      }
-    );
+    // Wait for Instagram to process the media
+    await new Promise(r => setTimeout(r, 8000));
 
-    const publishData = await publishRes.json() as { id?: string; error?: { message: string } };
+    // Retry publish up to 3 times
+    let publishResult: { id?: string; error?: { message: string } } | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const publishRes = await fetch(
+        `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ creation_id: creationId, access_token: accessToken })
+        }
+      );
 
-    if (!publishRes.ok || publishData.error) {
+      publishResult = await publishRes.json() as { id?: string; error?: { message: string } };
+      
+      if (publishResult.id) break; // success
+      if (attempt < 3) await new Promise(r => setTimeout(r, 3000));
+    }
+
+    if (!publishResult?.id) {
       return new Response(
-        JSON.stringify({ error: publishData.error?.message || 'Failed to publish media' }),
-        { status: publishRes.status, headers: corsHeaders }
+        JSON.stringify({ error: publishResult?.error?.message || 'Failed to publish media after retries' }),
+        { status: 500, headers: corsHeaders }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, id: publishData.id }),
+      JSON.stringify({ success: true, id: publishResult.id }),
       { status: 200, headers: corsHeaders }
     );
 
