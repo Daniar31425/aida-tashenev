@@ -172,7 +172,7 @@ ${phdReq}
     setButtonText("Публикую в Instagram...");
     if (imageUrl) {
       try {
-        const caption = `${title}\n\n${desc}\n\n#tashenev #university #вакансия #работа #шымкент`;
+        const caption = `${title}\n\n${desc}\n\n📩 Резюме отправляйте на: info@tashenev.edu.kz\n\n#tashenev #university #вакансия #работа #шымкент`;
         await publishJobPost(imageUrl, caption);
         setInstaStep(3);
         log("success", "✅ Опубликовано в Instagram!");
