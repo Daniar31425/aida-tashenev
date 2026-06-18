@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ChevronDown, ChevronUp, Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText, Globe2, Users, Clock, Edit3, Inbox, Instagram } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ChevronDown, ChevronUp, Sparkles, Loader2, Check, Copy, Linkedin, Globe, Send, Search, Bookmark, MessageSquare, FileText, Globe2, Users, Clock, Edit3, Inbox, Instagram, Trash2 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroq } from "@/lib/useGroq";
@@ -19,7 +20,7 @@ import { useActivity } from "@/lib/activity-log";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { addDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { uploadToImgBB } from "@/lib/imgbb";
@@ -683,6 +684,17 @@ function VacancyHistory() {
   const [sort, setSort] = useState<"new" | "old">("new");
   const [search, setSearch] = useState("");
 
+  async function handleDelete(id: string) {
+    try {
+      await deleteDoc(doc(db, "vacancies", id));
+      setItems(items.filter((item) => item.id !== id));
+      toast.success("Вакансия удалена");
+    } catch (e) {
+      console.error(e);
+      toast.error("Не удалось удалить вакансию");
+    }
+  }
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -768,7 +780,7 @@ function VacancyHistory() {
       ) : (
         <div className="space-y-3">
           {filtered.map((v) => (
-            <VacancyHistoryCard key={v.id} v={v} />
+            <VacancyHistoryCard key={v.id} v={v} onDelete={() => handleDelete(v.id)} />
           ))}
         </div>
       )}
@@ -776,15 +788,38 @@ function VacancyHistory() {
   );
 }
 
-function VacancyHistoryCard({ v }: { v: VacancyRecord }) {
+function VacancyHistoryCard({ v, onDelete }: { v: VacancyRecord; onDelete: () => void }) {
   return (
     <Card className="p-5 shadow-sm bg-card border rounded-xl space-y-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-lg font-semibold tracking-tight">{v.title}</h3>
-        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 shrink-0">
-          <Check className="w-3 h-3 mr-1" />
-          Опубликовано
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 shrink-0">
+            <Check className="w-3 h-3 mr-1" />
+            Опубликовано
+          </Badge>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Удалить вакансию?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Это действие нельзя отменить. Вакансия "{v.title}" будет удалена из истории.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete} className="bg-red-500 hover:bg-red-600">
+                  Удалить
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
