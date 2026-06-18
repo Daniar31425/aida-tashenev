@@ -19,5 +19,5 @@ export async function uploadToImgBB(blob: Blob): Promise<string> {
   const data = await res.json();
   console.log('ImgBB response:', data);
   if (!data?.data?.url) throw new Error("ImgBB: некорректный ответ");
-  return data.data.url as string;
+  return data.data.display_url as string;
 }
