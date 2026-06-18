@@ -27,6 +27,7 @@ import { uploadToImgBB } from "@/lib/imgbb";
 import { publishJobPost } from "@/lib/instagram";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { drawVacancyCardToCanvas } from "@/lib/canvasCard";
+import { sendTelegramMessage } from "@/lib/telegram";
 
 
 export const Route = createFileRoute("/_app/hr")({
@@ -104,12 +105,12 @@ ${phdReq}
       setGenDesc(true);
       try {
         const descOut = await complete(
-          `Составь полное описание вакансии в университете на должность "${title}".
-Требования: ${out.trim()}
-Опыт работы: ${exp}
-${phdReq}
-Заработная плата: По договорённости
-Профессиональный тон, на русском. Включи: О роли, Обязанности, Требования, Условия. Готовый текст для публикации.`
+          `Напиши раздел 'О роли' для вакансии ${title} в университете Ташенова. 
+2-3 абзаца о том чем будет заниматься сотрудник, 
+какова его роль в команде и какой вклад он вносит. 
+Без требований, без условий, только описание роли. 
+Зарплата: По договорённости. 
+Профессиональный тон, на русском языке.`
         );
         setDesc(descOut.trim());
         log("success", `HR Агент: описание вакансии "${title}" готово`);
@@ -217,6 +218,23 @@ ${phdReq}
     const vacancyId = Math.floor(10000000 + Math.random() * 89999999);
     const url = `hh.kz/vacancy/${vacancyId}`;
 
+    // Send Telegram notification
+    try {
+      await sendTelegramMessage(`
+📸 <b>AIDA — Вакансия опубликована в Instagram</b>
+
+👤 <b>Должность:</b> ${title}
+⏰ <b>Опыт:</b> ${exp}
+🔗 <b>Instagram:</b> instagram.com/s1k4ov
+🌐 <b>hh.kz:</b> hh.kz/vacancy/${url}
+
+<i>Университет Ташенова • HR Агент AIDA</i>
+`);
+    } catch (e) {
+      console.error("Telegram notification failed:", e);
+      // Don't break the flow if Telegram fails
+    }
+
     setResult({
       url,
       publishedAt: format(now, "dd.MM.yyyy HH:mm", { locale: ru }),
@@ -306,7 +324,7 @@ ${phdReq}
         </div>
 
         <div>
-          <Label className="text-sm font-medium mb-2 block">Описание вакансии</Label>
+          <Label className="text-sm font-medium mb-2 block">О роли</Label>
           <div className="relative">
             <Textarea 
               value={desc} 
